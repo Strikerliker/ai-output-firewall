@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AI Output Quality and Hallucination Firewall
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Default: amazon.nova-micro-v1:0
+  BedrockKnowledgeBaseId:
+    Type: String
+    Default: ''
+  AllowedOrigin:
+    Type: String
+    Default: '*'
+
+Resources:
+  AuditTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: request_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: request_id
+          KeyType: HASH
+
+  FirewallFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handler.lambda_handler
+      Runtime: python3.12
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          AWS_REGION_NAME: !Ref AWS::Region
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_KNOWLEDGE_BASE_ID: !Ref BedrockKnowledgeBaseId
+          AUDIT_TABLE: !Ref AuditTable
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AuditTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:Retrieve
+              Resource: '*'
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /evaluate
+            Method: POST
+
+Outputs:
+  FirewallApi:
+    Description: POST endpoint for firewall evaluation
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/evaluate'
