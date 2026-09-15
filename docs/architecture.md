@@ -1,43 +1,7 @@
-# Architecture
+# Architecture Diagram
 
-## MVP
+The diagram below shows the portfolio reference architecture for the AI Output Quality & Hallucination Firewall.
 
-```text
-User Question
-     |
-     v
-LLM / Generator
-     |
-     v
-Claim Extraction
-     |
-     v
-Evidence Verification
-     |
-     v
-Quality Scoring
-     |
-     +---- PASS
-     +---- WARN
-     +---- REJECT
-```
+![AI Output Firewall AWS Architecture](architecture.svg)
 
-## Target AWS architecture
-
-The production-oriented version will evolve toward:
-
-```text
-Client
-  -> Amazon API Gateway
-  -> AWS Lambda (firewall orchestrator)
-       -> Amazon Bedrock (generation)
-       -> Authoritative retrieval / Bedrock Knowledge Bases
-       -> Verification + scoring policy
-       -> DynamoDB / S3 audit record
-       -> CloudWatch metrics and logs
-  -> PASS / WARN / REJECT response
-```
-
-## Design principle
-
-Generation and verification should be separable. A fluent model response is not treated as evidence of correctness. The verifier evaluates claims against retrieved trusted evidence and exposes the decision and supporting metrics for auditing.
+The architecture separates candidate generation from evidence verification. API Gateway fronts a Lambda workflow; Amazon Bedrock generates candidate responses, curated S3 content and a Bedrock Knowledge Base provide the trusted evidence boundary, DynamoDB records audit decisions, and CloudWatch provides operational telemetry. The verifier returns PASS, WARN, or REJECT with evidence provenance.

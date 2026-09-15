@@ -1,0 +1,20 @@
+[
+  {
+    "id": "supported-s3-encryption",
+    "question": "What encryption does Amazon S3 support?",
+    "answer": "Amazon S3 supports server-side encryption for data at rest.",
+    "expected_decision": "PASS"
+  },
+  {
+    "id": "unsupported-s3-claim",
+    "question": "What encryption does Amazon S3 support?",
+    "answer": "Amazon S3 never encrypts objects at rest and cannot use AWS KMS.",
+    "expected_decision": "REJECT"
+  },
+  {
+    "id": "mixed-s3-claim",
+    "question": "What encryption does Amazon S3 support?",
+    "answer": "Amazon S3 supports server-side encryption. Every S3 object must use a customer-managed KMS key.",
+    "expected_decision": "WARN"
+  }
+]
