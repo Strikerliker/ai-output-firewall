@@ -25,6 +25,18 @@ Resources:
         - AttributeName: request_id
           KeyType: HASH
 
+  FirewallHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowHeaders:
+          - Content-Type
+        AllowMethods:
+          - POST
+          - OPTIONS
+
   FirewallFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -35,16 +47,19 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          AWS_REGION_NAME: !Ref AWS::Region
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           BEDROCK_KNOWLEDGE_BASE_ID: !Ref BedrockKnowledgeBaseId
           AUDIT_TABLE: !Ref AuditTable
           ALLOWED_ORIGIN: !Ref AllowedOrigin
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref AuditTable
         - Statement:
-            - Effect: Allow
+            - Sid: WriteAuditRecord
+              Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt AuditTable.Arn
+            - Sid: UseBedrock
+              Effect: Allow
               Action:
                 - bedrock:InvokeModel
                 - bedrock:Retrieve
@@ -53,10 +68,11 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref FirewallHttpApi
             Path: /evaluate
             Method: POST
 
 Outputs:
   FirewallApi:
     Description: POST endpoint for firewall evaluation
-    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/evaluate'
+    Value: !Sub 'https://${FirewallHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/evaluate'
