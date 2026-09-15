@@ -2,6 +2,8 @@
 
 An AWS-focused AI reliability project that evaluates LLM output against trusted evidence before allowing the answer to pass downstream.
 
+![AI Output Firewall AWS Architecture](docs/architecture.svg)
+
 ## Why this project exists
 
 LLMs can produce fluent answers that are incomplete, weakly sourced, or false. This project separates **generation** from **verification** and treats model output as untrusted until claims are checked against a controlled evidence boundary.
@@ -41,15 +43,11 @@ pip install -r requirements.txt
 streamlit run dashboard.py
 ```
 
-The dashboard supports both Bedrock-generated answers and supplied-answer verification.
-
 ## Run tests
 
 ```bash
 python -m pytest -q
 ```
-
-The repository includes labeled regression cases under `data/evaluation.json` so changes to scoring can be tested rather than judged by appearance alone.
 
 ## AWS configuration
 
@@ -61,59 +59,30 @@ export BEDROCK_MODEL_ID=amazon.nova-micro-v1:0
 export BEDROCK_KNOWLEDGE_BASE_ID=YOUR_KNOWLEDGE_BASE_ID
 ```
 
-For a portfolio deployment, populate the Knowledge Base with curated authoritative material stored in S3 and retain provenance metadata. Do not treat arbitrary scraped internet text as trusted evidence.
+For a portfolio deployment, populate the Knowledge Base with curated authoritative material stored in S3 and retain provenance metadata.
 
 ## Deploy the API with AWS SAM
-
-Prerequisites: AWS CLI, SAM CLI, Bedrock model access, and optionally a configured Bedrock Knowledge Base.
 
 ```bash
 sam build
 sam deploy --guided
 ```
 
-`template.yaml` creates the Lambda-backed HTTP endpoint and a DynamoDB audit table. The function returns the answer, score, decision, claim-level results, evidence provenance, and latency. Set `AllowedOrigin` to the portfolio site's origin instead of `*` for a public deployment.
-
-Example request:
-
-```json
-{
-  "question": "What encryption does Amazon S3 support?",
-  "answer": "Amazon S3 supports server-side encryption for data at rest."
-}
-```
-
-If `answer` is omitted, the service asks Amazon Bedrock to generate the candidate answer before verification.
+`template.yaml` creates the Lambda-backed HTTP endpoint and a DynamoDB audit table. The function returns the answer, score, decision, claim-level results, evidence provenance, and latency.
 
 ## Security and reliability choices
 
 - No AWS credentials are stored in source code.
 - Generation and verification are separate trust stages.
 - Knowledge Base sources are surfaced for auditability.
-- Audit writes are deliberately non-blocking so an observability failure does not hide an evaluation result.
+- Audit writes are deliberately non-blocking.
 - API errors avoid returning internal exception details.
 - CI executes the offline test suite on pushes and pull requests.
-- The trusted corpus is an explicit security boundary and should be curated accordingly.
+- The trusted corpus is an explicit security boundary.
 
 ## Architecture
 
-```text
-User / Portfolio Demo
-        |
-   API Gateway
-        |
-      Lambda ----------------------> DynamoDB audit trail
-        |
-        +--> Amazon Bedrock (candidate generation)
-        |
-        +--> Bedrock Knowledge Base --> S3 trusted documents
-        |
-   Claim verifier + scorer
-        |
- PASS / WARN / REJECT + provenance
-        |
-   CloudWatch structured logs
-```
+See [`docs/architecture.md`](docs/architecture.md) for the full graphical architecture and explanation.
 
 ## Interview talking points
 
