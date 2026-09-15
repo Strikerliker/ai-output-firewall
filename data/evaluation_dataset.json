@@ -1,0 +1,14 @@
+[
+  {
+    "id": "s3-supported",
+    "question": "What encryption does Amazon S3 support?",
+    "answer": "Amazon S3 supports server-side encryption. S3 can use AWS KMS keys for server-side encryption.",
+    "expected_decision": "PASS"
+  },
+  {
+    "id": "s3-hallucinated",
+    "question": "What encryption does Amazon S3 support?",
+    "answer": "Amazon S3 requires a fictional QuantumShield encryption algorithm for every object.",
+    "expected_decision": "REJECT"
+  }
+]
