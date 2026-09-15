@@ -2,49 +2,58 @@
 
 An AWS-focused AI reliability project that evaluates LLM output against trusted evidence before allowing the answer to pass downstream.
 
-## Goal
+## Why this project exists
 
-`Question -> Amazon Bedrock -> LLM Answer -> Knowledge Base Retrieval -> Claim Verification -> Score -> PASS / WARN / REJECT`
+LLMs can produce fluent answers that are incomplete, weakly sourced, or false. This project separates **generation** from **verification** and treats model output as untrusted until claims are checked against a controlled evidence boundary.
 
-The project separates generation from verification: a fluent model response is never treated as evidence of correctness.
+`Question -> Amazon Bedrock -> Candidate Answer -> Trusted Retrieval -> Claim Verification -> Score -> PASS / WARN / REJECT`
 
-## Current capabilities
+## Portfolio capabilities
 
-- Interactive Streamlit dashboard
 - Amazon Bedrock Converse API generation
-- Bedrock Knowledge Bases retrieval through `bedrock-agent-runtime`
-- Evidence objects with source URI and retrieval relevance score
-- Sentence-level claim extraction
-- Deterministic support scoring
-- PASS / WARN / REJECT policy
-- Offline tests that do not require AWS calls
+- Bedrock Knowledge Bases retrieval with source provenance
+- Sentence-level claim extraction and deterministic support scoring
+- PASS / WARN / REJECT enforcement policy
+- Interactive Streamlit reviewer dashboard
+- Serverless Lambda + API Gateway-compatible HTTP API
+- DynamoDB audit records and structured CloudWatch logs
+- AWS SAM infrastructure-as-code
+- Offline regression/evaluation dataset
+- Pytest suite and GitHub Actions CI
+- Local fallback evidence so reviewers can run the verification path without AWS credentials
 
-## Dashboard
+## Decision policy
 
-The dashboard lets a reviewer either generate an answer with Amazon Bedrock or paste a candidate LLM answer for verification. It displays the overall quality score, PASS/WARN/REJECT decision, supported and unsupported claim counts, per-claim support scores, and retrieved evidence with provenance.
+| Decision | Score | Meaning |
+|---|---:|---|
+| PASS | 80-100 | Evidence sufficiently supports the candidate response |
+| WARN | 50-79 | Mixed or incomplete support; human review recommended |
+| REJECT | 0-49 | Evidence does not sufficiently support the response |
 
-Install dependencies and launch it locally:
+The current lexical verifier is intentionally transparent and deterministic. It is a baseline, not a claim that hallucination detection is solved. A production extension would add semantic entailment/LLM-as-judge verification and benchmark it against labeled data.
+
+## Run the dashboard
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
 streamlit run dashboard.py
 ```
 
-Supplied-answer mode can be used without a live Bedrock generation call. Live generation requires valid AWS credentials and Bedrock model access.
+The dashboard supports both Bedrock-generated answers and supplied-answer verification.
 
-## Scoring
+## Run tests
 
-- **PASS**: score >= 80
-- **WARN**: score >= 50 and < 80
-- **REJECT**: score < 50
+```bash
+python -m pytest -q
+```
 
-Lexical overlap is deliberately only a baseline. A later phase will add semantic/LLM-based claim verification and measured evaluation metrics.
+The repository includes labeled regression cases under `data/evaluation.json` so changes to scoring can be tested rather than judged by appearance alone.
 
-## AWS setup
+## AWS configuration
 
-Configure AWS credentials using the standard AWS SDK credential chain (AWS CLI profile, IAM role, etc.). Never commit AWS access keys.
-
-Set configuration:
+Use the standard AWS SDK credential chain. Never commit access keys.
 
 ```bash
 export AWS_REGION=us-east-1
@@ -52,36 +61,64 @@ export BEDROCK_MODEL_ID=amazon.nova-micro-v1:0
 export BEDROCK_KNOWLEDGE_BASE_ID=YOUR_KNOWLEDGE_BASE_ID
 ```
 
-The runtime identity needs permission for the Bedrock model invocation and Knowledge Base retrieval actions it uses.
+For a portfolio deployment, populate the Knowledge Base with curated authoritative material stored in S3 and retain provenance metadata. Do not treat arbitrary scraped internet text as trusted evidence.
 
-When `BEDROCK_KNOWLEDGE_BASE_ID` is configured, the firewall retrieves evidence from that Knowledge Base. Without it, the repository keeps a small local evidence set so the verification MVP remains runnable and testable.
+## Deploy the API with AWS SAM
 
-## Knowledge Base data
-
-For the portfolio deployment, use an Amazon S3-backed Bedrock Knowledge Base containing curated authoritative material. Keep provenance/metadata with the source documents so retrieved evidence can be audited.
-
-Do not scrape arbitrary internet content into the trusted corpus. The point of the firewall is to verify against an explicitly controlled evidence boundary.
-
-## CLI
+Prerequisites: AWS CLI, SAM CLI, Bedrock model access, and optionally a configured Bedrock Knowledge Base.
 
 ```bash
-python -m src.app
+sam build
+sam deploy --guided
 ```
 
-## Test
+`template.yaml` creates the Lambda-backed HTTP endpoint and a DynamoDB audit table. The function returns the answer, score, decision, claim-level results, evidence provenance, and latency. Set `AllowedOrigin` to the portfolio site's origin instead of `*` for a public deployment.
 
-```bash
-python -m pytest
+Example request:
+
+```json
+{
+  "question": "What encryption does Amazon S3 support?",
+  "answer": "Amazon S3 supports server-side encryption for data at rest."
+}
 ```
 
-## Roadmap
+If `answer` is omitted, the service asks Amazon Bedrock to generate the candidate answer before verification.
 
-1. Local deterministic verification baseline - complete
-2. Amazon Bedrock generation - complete
-3. Evidence objects and source tracking - complete
-4. Bedrock Knowledge Base retrieval - code complete; AWS resource configuration required
-5. Interactive dashboard - complete
-6. Semantic claim verification
-7. Lambda + API Gateway service
-8. DynamoDB/S3 audit trail and CloudWatch metrics
-9. Evaluation harness and measured hallucination-detection performance
+## Security and reliability choices
+
+- No AWS credentials are stored in source code.
+- Generation and verification are separate trust stages.
+- Knowledge Base sources are surfaced for auditability.
+- Audit writes are deliberately non-blocking so an observability failure does not hide an evaluation result.
+- API errors avoid returning internal exception details.
+- CI executes the offline test suite on pushes and pull requests.
+- The trusted corpus is an explicit security boundary and should be curated accordingly.
+
+## Architecture
+
+```text
+User / Portfolio Demo
+        |
+   API Gateway
+        |
+      Lambda ----------------------> DynamoDB audit trail
+        |
+        +--> Amazon Bedrock (candidate generation)
+        |
+        +--> Bedrock Knowledge Base --> S3 trusted documents
+        |
+   Claim verifier + scorer
+        |
+ PASS / WARN / REJECT + provenance
+        |
+   CloudWatch structured logs
+```
+
+## Interview talking points
+
+This project demonstrates practical GenAI engineering beyond prompt design: RAG, evidence provenance, deterministic policy enforcement, serverless APIs, IAM-aware AWS architecture, observability, infrastructure-as-code, testing, and measurable evaluation. The central design decision is that a model is **not allowed to verify itself using fluency as evidence**.
+
+## Next production extensions
+
+Semantic entailment scoring, a larger labeled benchmark, CloudWatch custom metrics/alarms, authentication/rate limiting, and a production Knowledge Base remain appropriate next-stage improvements. They are intentionally identified rather than represented as already deployed.
