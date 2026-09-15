@@ -4,21 +4,29 @@ An AWS-focused AI reliability project that evaluates LLM output against trusted 
 
 ## Goal
 
-The firewall sits between a user and an LLM and produces a reliability decision:
+`Question -> Amazon Bedrock -> LLM Answer -> Knowledge Base Retrieval -> Claim Verification -> Score -> PASS / WARN / REJECT`
 
-`Question -> Amazon Bedrock -> LLM Answer -> Verification -> Score -> PASS / WARN / REJECT`
+The project separates generation from verification: a fluent model response is never treated as evidence of correctness.
 
-The current version uses the Amazon Bedrock Converse API for generation and a deterministic verification baseline. Later phases will add authoritative retrieval, AWS Lambda, API Gateway, DynamoDB, S3, and CloudWatch.
+## Current capabilities
 
-## MVP scoring
+- Amazon Bedrock Converse API generation
+- Bedrock Knowledge Bases retrieval through `bedrock-agent-runtime`
+- Evidence objects with source URI and retrieval relevance score
+- Sentence-level claim extraction
+- Deterministic support scoring
+- PASS / WARN / REJECT policy
+- Offline tests that do not require AWS calls
+
+## Scoring
 
 - **PASS**: score >= 80
 - **WARN**: score >= 50 and < 80
 - **REJECT**: score < 50
 
-The verifier is intentionally deterministic and testable. Lexical overlap is a baseline, not proof of factual correctness; later retrieval and semantic verification will replace it.
+Lexical overlap is deliberately only a baseline. A later phase will add semantic/LLM-based claim verification and measured evaluation metrics.
 
-## Amazon Bedrock setup
+## AWS setup
 
 Install dependencies:
 
@@ -26,39 +34,45 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Configure AWS credentials using the normal AWS SDK credential chain (for example, an AWS CLI profile or an IAM role). Never commit AWS access keys.
+Configure AWS credentials using the standard AWS SDK credential chain (AWS CLI profile, IAM role, etc.). Never commit AWS access keys.
 
-The runtime identity needs permission to invoke the selected Bedrock model, including `bedrock:InvokeModel`.
-
-Optional environment variables:
+Set configuration:
 
 ```bash
 export AWS_REGION=us-east-1
 export BEDROCK_MODEL_ID=amazon.nova-micro-v1:0
+export BEDROCK_KNOWLEDGE_BASE_ID=YOUR_KNOWLEDGE_BASE_ID
 ```
 
-`BEDROCK_MODEL_ID` can also be set to a supported Bedrock inference-profile ID or ARN.
+The runtime identity needs permission for the Bedrock model invocation and Knowledge Base retrieval actions it uses.
 
-Run the firewall:
+When `BEDROCK_KNOWLEDGE_BASE_ID` is configured, the firewall retrieves evidence from that Knowledge Base. Without it, the repository keeps a small local evidence set so the verification MVP remains runnable and testable.
+
+## Knowledge Base data
+
+For the portfolio deployment, use an Amazon S3-backed Bedrock Knowledge Base containing curated authoritative material. Keep provenance/metadata with the source documents so retrieved evidence can be audited.
+
+Do not scrape arbitrary internet content into the trusted corpus. The point of the firewall is to verify against an explicitly controlled evidence boundary.
+
+## Run
 
 ```bash
 python -m src.app
 ```
 
-## Run tests
+## Test
 
 ```bash
 python -m pytest
 ```
 
-The tests inject candidate answers directly, so the deterministic firewall tests do not require a live Bedrock call.
-
 ## Roadmap
 
 1. Local deterministic verification baseline - complete
 2. Amazon Bedrock generation - complete
-3. Claim extraction and citation/evidence tracking
-4. Authoritative-source retrieval / Bedrock Knowledge Bases
-5. Lambda + API Gateway service
-6. DynamoDB/S3 audit trail and CloudWatch metrics
-7. Evaluation dataset and measured hallucination-detection performance
+3. Evidence objects and source tracking - complete
+4. Bedrock Knowledge Base retrieval - code complete; AWS resource configuration required
+5. Semantic claim verification
+6. Lambda + API Gateway service
+7. DynamoDB/S3 audit trail and CloudWatch metrics
+8. Evaluation harness and measured hallucination-detection performance
