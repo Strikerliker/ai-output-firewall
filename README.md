@@ -10,6 +10,7 @@ The project separates generation from verification: a fluent model response is n
 
 ## Current capabilities
 
+- Interactive Streamlit dashboard
 - Amazon Bedrock Converse API generation
 - Bedrock Knowledge Bases retrieval through `bedrock-agent-runtime`
 - Evidence objects with source URI and retrieval relevance score
@@ -17,6 +18,19 @@ The project separates generation from verification: a fluent model response is n
 - Deterministic support scoring
 - PASS / WARN / REJECT policy
 - Offline tests that do not require AWS calls
+
+## Dashboard
+
+The dashboard lets a reviewer either generate an answer with Amazon Bedrock or paste a candidate LLM answer for verification. It displays the overall quality score, PASS/WARN/REJECT decision, supported and unsupported claim counts, per-claim support scores, and retrieved evidence with provenance.
+
+Install dependencies and launch it locally:
+
+```bash
+pip install -r requirements.txt
+streamlit run dashboard.py
+```
+
+Supplied-answer mode can be used without a live Bedrock generation call. Live generation requires valid AWS credentials and Bedrock model access.
 
 ## Scoring
 
@@ -27,12 +41,6 @@ The project separates generation from verification: a fluent model response is n
 Lexical overlap is deliberately only a baseline. A later phase will add semantic/LLM-based claim verification and measured evaluation metrics.
 
 ## AWS setup
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
 
 Configure AWS credentials using the standard AWS SDK credential chain (AWS CLI profile, IAM role, etc.). Never commit AWS access keys.
 
@@ -54,7 +62,7 @@ For the portfolio deployment, use an Amazon S3-backed Bedrock Knowledge Base con
 
 Do not scrape arbitrary internet content into the trusted corpus. The point of the firewall is to verify against an explicitly controlled evidence boundary.
 
-## Run
+## CLI
 
 ```bash
 python -m src.app
@@ -72,7 +80,8 @@ python -m pytest
 2. Amazon Bedrock generation - complete
 3. Evidence objects and source tracking - complete
 4. Bedrock Knowledge Base retrieval - code complete; AWS resource configuration required
-5. Semantic claim verification
-6. Lambda + API Gateway service
-7. DynamoDB/S3 audit trail and CloudWatch metrics
-8. Evaluation harness and measured hallucination-detection performance
+5. Interactive dashboard - complete
+6. Semantic claim verification
+7. Lambda + API Gateway service
+8. DynamoDB/S3 audit trail and CloudWatch metrics
+9. Evaluation harness and measured hallucination-detection performance
